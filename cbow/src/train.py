@@ -56,6 +56,39 @@ def train(train_loader, net): #net = cbow_model.CBOW_model
     return train_loss, train_acc , correct, total
 
 
+#評価
+def valid(val_loader, net):
+    net.eval()
+    optimizer = torch.optim.AdamW(net.parameters(), lr=0.001)
+    loss_function = nn.CrossEntropyLoss()
+    running_loss = 0
+    correct = 0
+    total = 0
+    l = len(val_loader)
+    for i, (input_data, labels) in tqdm(enumerate(val_loader),total = l):
+        if torch.cuda.is_available():
+            input_data = Variable(input_data.cuda(), volatile=True)
+            labels = Variable(labels.cuda(), volatile=True)
+        else:
+            input_data = Variable(input_data, volatile=True)
+            labels = Variable(labels, volatile=True)
+
+        outputs = net(input_data)
+        # print(outputs, labels)
+
+        loss = loss_function(outputs, labels)
+        running_loss += loss.data
+
+        _, predicted = torch.max(outputs.data, 1)
+        correct += (predicted == labels.data).sum().item()
+        total += labels.size(0)
+
+    val_loss = running_loss / len(val_loader)
+    val_acc = correct / total
+
+    return val_loss, val_acc, correct, total
+
+
 
 
 #Early stoppingクラス

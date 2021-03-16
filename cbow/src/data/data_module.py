@@ -5,6 +5,9 @@ from . import datasets
 from pathlib import Path
 import sys, os
 
+from transformers import BertJapaneseTokenizer
+
+
 SWD = Path(__file__).resolve().parent
 
 sys.path.append(os.path.abspath(SWD / "../../.."))
@@ -13,7 +16,7 @@ sys.path.append(os.path.abspath(SWD / "../../.."))
 
 
 class SampleDataModule:
-    def __init__(self, mode, add_word_path: Path, batch_size, window_size = 1):
+    def __init__(self, mode, corpus_path: Path, batch_size, window_size = 1):
         self.batch_size = batch_size
         self.tokenizer = None
         self.dataset = datasets.SampleDataset(self.transform_word2idx, window_size)
@@ -25,134 +28,98 @@ class SampleDataModule:
 
         return list_ids
 
-    # def transform_word2idx(self, x, dict_word2idx):
-    #     context_datas, target_data = x
-
-    #     return (
-    #         torch.tensor(
-    #             [dict_word2idx[key] for key in context_datas]
-    #         ),
-    #         torch.tensor(dict_word2idx[target_data]),
-    #     )
-
-    # def train_dataloader(self):
-    #     return DataLoader(
-    #         self.dataset.data,
-    #         batch_size=self.batch_size,
-    #         shuffle=True,
-    #     )
-
-    # def dev_dataloader(self): #今回はearlystoppingしない
-    #     return DataLoader(
-    #         self.dataset[
-    #             int(self.dataset_length / 10 * 8) : int(self.dataset_length / 10 * 9)
-    #         ],
-    #         batch_size=self.batch_size,
-    #     )
-
-    # def test_dataloader(self):
-    #     return DataLoader(
-    #         self.dataset.test_data,
-    #         batch_size=self.batch_size,
-    #     )
-
-    # def kfold_dataloader(self, n_splits: int):
-    #     for train_index, dev_index, test_index in self.kfold_dataloader_index(n_splits):
-    #         train_dataset = Subset(self.dataset, train_index)
-    #         dev_dataset = Subset(self.dataset, dev_index)
-    #         test_dataset = Subset(self.dataset, test_index)
-
-    #         train_dataloader = DataLoader(
-    #             train_dataset, batch_size=self.batch_size, shuffle=True
-    #         )
-    #         dev_dataloader = DataLoader(dev_dataset, batch_size=self.batch_size)
-    #         test_dataloader = DataLoader(test_dataset, batch_size=self.batch_size)
-    #         yield train_dataloader, dev_dataloader, test_dataloader
-
-    # def kfold_dataloader_index(self, n_splits: int):
-    #     n_splits = int(n_splits / 2)
-    #     kf = KFold(n_splits=n_splits)
-    #     for train_index, dev_test_index in kf.split(self.dataset.dataset):
-    #         border = int(len(dev_test_index) / 2)
-    #         dev_index, test_index = dev_test_index[:border], dev_test_index[border:]
-
-    #         yield train_index, dev_index, test_index
-
-    #         dev_index, test_index = test_index, dev_index
-
-    #         yield train_index, dev_index, test_index
 
 
+class LivedoorDataModule:
+    def __init__(self, mode, corpus_path: Path, batch_size, window_size = 2):
+        #txt分類用のラベル
+        self.labels = [
+            "it-life-hack",
+            "livedoor-homme",
+            "peachy",
+            "smax",
+            "topic-news",
+            "dokujo-tsushin",
+            "kaden-channel",
+            "movie-enter",
+            "sports-watch",
+        ]
+        self.batch_size = batch_size
+        self.corpus_path = corpus_path
+        self.window_size = window_size
+        self.label2id = {label: _id for _id, label in enumerate(self.labels)}
+        self.id2label = {value: key for key, value in self.label2id.items()}
+        self.tokenizer = BertJapaneseTokenizer.from_pretrained("cl-tohoku/bert-base-japanese-whole-word-masking")
+        # self.train, self.val, self.test = None, None, None
+
+        if mode == "cbow":
+            self.dataset = datasets.TsvDataset(self.corpus_path, self.transform_for_cbow, self.get_vocab_size, window_size = self.window_size)
+        elif mode == "txt_classfication_by_title":
+            self.dataset = datasets.TsvDataset(self.corpus_path, self.transform_for_txt_classfication_by_title)
+
+        self.dataset_length = len(self.dataset)
+
+    def get_vocab_size(self, tmp_max_idx, data): #語彙数を取得する関数
+        #dataの形によって場合わけ
+        if str(type(data)) == "<class 'tuple'>": #tuple型の場合
+            data_cat = torch.cat([data[0], data[1].view(1)])
+            max_idx_of_this_data = torch.max(data_cat).tolist()
+
+        elif str(type(data)) == "<class 'list'>": #list型の場合
+            data_max_list = [torch.max(torch.cat([data_i[0],data_i[1].view(1)])).tolist() for data_i in data]
+            max_idx_of_this_data = max(data_max_list)
+
+        max_idx_of_this_data += 1 #max = 3なら, [0,1,2,3]で語彙数は4であるため.
+
+        if tmp_max_idx < max_idx_of_this_data:
+            new_max_idx = max_idx_of_this_data
+        else:
+            new_max_idx = tmp_max_idx
+
+        return new_max_idx
 
 
+    def transform_for_cbow(self, x, window_size = 2): #cbow用
+        _, contents, _ = x
+        list_context_and_target = []
+
+        #ある文を形態素解析(分かち書き)する
+        wakati_ids = self.tokenizer.encode(contents, max_length=80, padding="max_length")
+
+        #windowサイズに合わせて, contextとtargetを生成
+        for i in range(window_size, len(wakati_ids) - window_size): #パディングしたのも含んでいる.
+            context = list(wakati_ids[i + j] for j in range(-window_size, window_size+1) if j != 0)
+            target = wakati_ids[i]
+            list_context_and_target.append((torch.tensor(context), torch.tensor(target)))
+        return list_context_and_target
 
 
-# class SampleDataModule:
-#     def __init__(self, mode, add_word_path: Path, batch_size):
-#         self.labels = None
-#         self.batch_size = batch_size
+    def transform_for_txt_classfication_by_title(self, x): #タイトルからテキスト分類
+        title, _, label = x
+        return (
+            torch.tensor(
+                self.tokenizer(title, max_length=80, padding="max_length")["input_ids"]
+            ),
+            torch.tensor(self.label2id[label]),
+        )
 
-#         self.label2id = None
-#         self.id2label = None
-#         self.tokenizer = None
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.dataset[: int(self.dataset_length / 10 * 8)], #要修正？分けられている場合は、self.trainにする？
+            batch_size=self.batch_size,
+            shuffle=True,
+        )
 
-#         self.dataset = datasets.SampleDataset()
-#         # self.dataset = datasets.SampleDataset(self.transform_title)
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.dataset[
+                int(self.dataset_length / 10 * 8) : int(self.dataset_length / 10 * 9)
+            ],
+            batch_size=self.batch_size,
+        )
 
-#         self.dataset_length = len(self.dataset)
-
-#     # def transform_title(self, x):
-#     #     title, _, label = x
-#     #     return (
-#     #         torch.tensor(
-#     #             self.tokenizer(title, max_length=80, padding="max_length")["input_ids"]
-#     #         ),
-#     #         torch.tensor(self.label2id[label]),
-#     #     )
-
-#     def train_dataloader(self):
-#         return DataLoader(
-#             self.dataset[: int(self.dataset_length / 10 * 8)],
-#             batch_size=self.batch_size,
-#             shuffle=True,
-#         )
-
-#     def dev_dataloader(self):
-#         return DataLoader(
-#             self.dataset[
-#                 int(self.dataset_length / 10 * 8) : int(self.dataset_length / 10 * 9)
-#             ],
-#             batch_size=self.batch_size,
-#         )
-
-#     def test_dataloader(self):
-#         return DataLoader(
-#             self.dataset[int(self.dataset_length / 10 * 9) :],
-#             batch_size=self.batch_size,
-#         )
-
-#     def kfold_dataloader(self, n_splits: int):
-#         for train_index, dev_index, test_index in self.kfold_dataloader_index(n_splits):
-#             train_dataset = Subset(self.dataset, train_index)
-#             dev_dataset = Subset(self.dataset, dev_index)
-#             test_dataset = Subset(self.dataset, test_index)
-
-#             train_dataloader = DataLoader(
-#                 train_dataset, batch_size=self.batch_size, shuffle=True
-#             )
-#             dev_dataloader = DataLoader(dev_dataset, batch_size=self.batch_size)
-#             test_dataloader = DataLoader(test_dataset, batch_size=self.batch_size)
-#             yield train_dataloader, dev_dataloader, test_dataloader
-
-#     def kfold_dataloader_index(self, n_splits: int):
-#         n_splits = int(n_splits / 2)
-#         kf = KFold(n_splits=n_splits)
-#         for train_index, dev_test_index in kf.split(self.dataset.dataset):
-#             border = int(len(dev_test_index) / 2)
-#             dev_index, test_index = dev_test_index[:border], dev_test_index[border:]
-
-#             yield train_index, dev_index, test_index
-
-#             dev_index, test_index = test_index, dev_index
-
-#             yield train_index, dev_index, test_index
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.dataset[int(self.dataset_length / 10 * 9) :],
+            batch_size=self.batch_size,
+        )
