@@ -95,7 +95,7 @@ if __name__ == "__main__":
     elif args.use_data == "Livedoor":
         #livedoorニュースによる学習
         corpus_dir = Path("corpus/livedoor")
-        name = "train.tsv"
+        name = "all.tsv"
         corpus_path = SWD /corpus_dir / name #tsvファイルのパス
 
         #データモジュールの用意
@@ -146,8 +146,8 @@ if __name__ == "__main__":
 
     # Test
     test_loss, test_acc , test_correct, test_total = test(test_dataloader, net)
-    print('epoch %d, test_loss: %.4f test_accuracy: %.4f(%d/%d)'
-            % (epoch, test_loss, test_acc, test_correct, test_total))
+    print('test_loss: %.4f test_accuracy: %.4f(%d/%d)'
+            % (test_loss, test_acc, test_correct, test_total))
 
 
 
