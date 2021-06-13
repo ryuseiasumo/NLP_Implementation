@@ -5,9 +5,6 @@ from torch import optim
 from torch.autograd import Variable
 from tqdm import trange, tqdm
 
-#シード値
-torch.manual_seed(0)
-
 class Trainer:
     def __init__(self, net, optimizer, loss_function, num_epochs):
         super().__init__()
@@ -23,13 +20,15 @@ class Trainer:
         l = len(train_loader)
 
         for i, (input_data, labels) in tqdm(enumerate(train_loader),total = l):
-            # print(i, (input_data, labels))
             if torch.cuda.is_available():
-                input_data = Variable(input_data.cuda(), volatile=True)
-                labels = Variable(labels.cuda(), volatile=True)
+                with torch.no_grad():
+                    input_data = Variable(input_data.cuda())
+                    labels = Variable(labels.cuda())
             else:
-                input_data = Variable(input_data, volatile=True)
-                labels = Variable(labels, volatile=True)
+                with torch.no_grad():
+                    input_data = Variable(input_data)
+                    labels = Variable(labels)
+
 
             self.optimizer.zero_grad()
             outputs = self.net(input_data)
@@ -57,13 +56,16 @@ class Trainer:
 
         for i, (input_data, labels) in tqdm(enumerate(val_loader),total = l):
             if torch.cuda.is_available():
-                input_data = Variable(input_data.cuda(), volatile=True)
-                labels = Variable(labels.cuda(), volatile=True)
+                with torch.no_grad():
+                    input_data = Variable(input_data.cuda())
+                    outputs = self.net(input_data)
+                    labels = Variable(labels.cuda())
             else:
-                input_data = Variable(input_data, volatile=True)
-                labels = Variable(labels, volatile=True)
+                with torch.no_grad():
+                    input_data = Variable(input_data)
+                    outputs = self.net(input_data)
+                    labels = Variable(labels)
 
-            outputs = self.net(input_data)
             loss = self.loss_function(outputs, labels)
             running_loss += loss.data
 

@@ -18,13 +18,16 @@ def test(test_loader, net): #net = cbow_model.CBOW_model
     l = len(test_loader)
     for i, (input_data, labels) in tqdm(enumerate(test_loader),total = l):
         if torch.cuda.is_available():
-            input_data = Variable(input_data.cuda(), volatile=True)
-            labels = Variable(labels.cuda(), volatile=True)
-        else:
-            input_data = Variable(input_data, volatile=True)
-            labels = Variable(labels, volatile=True)
+            with torch.no_grad():
+                input_data = Variable(input_data.cuda())
+                outputs = net(input_data)
+                labels = Variable(labels.cuda())
 
-        outputs = net(input_data)
+        else:
+            with torch.no_grad():
+                input_data = Variable(input_data)
+                outputs = net(input_data)
+                labels = Variable(labels)
         # print(outputs, labels)
 
         loss = loss_function(outputs, labels)

@@ -7,14 +7,9 @@ from torch import optim
 
 from tqdm import trange, tqdm
 
-torch.manual_seed(0)
-
 from src import sentence_classification_model
 
-# from src.data import data_module
-# from src.data import datasets
-# from src.data import TsvDataset
-from src.data import LivedoorDataModule
+from src.data.data_module import LivedoorDataModule
 
 from src.train import Trainer
 from src.train import Early_Stopping
@@ -40,6 +35,18 @@ args = parse_args()
 num_epochs = args.max_epoch
 batch_size = args.batch_size
 
+import os
+import random
+import numpy as np
+def seed_everything(seed: int):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+
 
 def set_model(label_dim):
     net = sentence_classification_model.SentenceClassification(label_dim)
@@ -55,10 +62,12 @@ def set_model(label_dim):
 
 
 if __name__ == "__main__":
+    seed_everything(0) #シード値の初期化
     if args.use_data == "Livedoor":
         #livedoorニュースによる学習
         corpus_dir = Path("corpus/livedoor")
-        name = "train.tsv"
+        name = "all.tsv" #全データ
+        # name = "train.tsv" #データ
         corpus_path = SWD /corpus_dir / name #tsvファイルのパス
 
         #データモジュールの用意
@@ -76,7 +85,7 @@ if __name__ == "__main__":
         val_dataloader = data_module_Livedoor.val_dataloader()
         test_dataloader = data_module_Livedoor.test_dataloader()
 
-    #モデルの学習
+    # #モデルの学習
     trainer = Trainer(net, optimizer, loss_function, num_epochs)
     trainer.fit_model(train_dataloader, val_dataloader)
 

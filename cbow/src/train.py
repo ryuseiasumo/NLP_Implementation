@@ -20,24 +20,20 @@ def train(train_loader, net): #net = cbow_model.CBOW_model
     total = 0
 
     for i, (input_data, labels) in tqdm(enumerate(train_loader),total = l):
-        # print(i, (input_data, labels))
         if torch.cuda.is_available():
-            input_data = Variable(input_data.cuda(), volatile=True)
-            labels = Variable(labels.cuda(), volatile=True)
+            with torch.no_grad():
+                input_data = Variable(input_data.cuda())
+                labels = Variable(labels.cuda())
         else:
-            input_data = Variable(input_data, volatile=True)
-            labels = Variable(labels, volatile=True)
+            with torch.no_grad():
+                input_data = Variable(input_data)
+                labels = Variable(labels)
 
         optimizer.zero_grad()
         outputs = net(input_data)
 
-        # print(outputs)
-        # print(labels)
-        # import pdb; pdb.set_trace()
-
         loss = loss_function(outputs, labels)
         running_loss += loss.data
-        # print(loss.data)
 
         loss.backward()
         optimizer.step()
@@ -45,9 +41,6 @@ def train(train_loader, net): #net = cbow_model.CBOW_model
         _, predicted = torch.max(outputs.data, 1)
         correct += (predicted == labels.data).sum().item()
         total += labels.size(0)
-
-        # print(predicted)
-        # print(labels)
 
 
     train_loss = running_loss / len(train_loader)
@@ -67,14 +60,15 @@ def valid(val_loader, net):
     l = len(val_loader)
     for i, (input_data, labels) in tqdm(enumerate(val_loader),total = l):
         if torch.cuda.is_available():
-            input_data = Variable(input_data.cuda(), volatile=True)
-            labels = Variable(labels.cuda(), volatile=True)
+            with torch.no_grad():
+                input_data = Variable(input_data.cuda())
+                outputs = net(input_data)
+                labels = Variable(labels.cuda())
         else:
-            input_data = Variable(input_data, volatile=True)
-            labels = Variable(labels, volatile=True)
-
-        outputs = net(input_data)
-        # print(outputs, labels)
+            with torch.no_grad():
+                input_data = Variable(input_data)
+                outputs = net(input_data)
+                labels = Variable(labels)
 
         loss = loss_function(outputs, labels)
         running_loss += loss.data

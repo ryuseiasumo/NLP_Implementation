@@ -52,7 +52,8 @@ class LivedoorDataModule:
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
-            self.dataset[: int(self.dataset_length / 10 * 8)], #要修正？分けられている場合は、self.trainにする？
+            self.dataset[: int(self.dataset_length / 10 * 8)
+            ],
             batch_size=self.batch_size,
             shuffle=True,
         )

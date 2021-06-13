@@ -22,13 +22,16 @@ class Out_prediction: #予想クラスを出力する関数
 
         for i, (input_data, labels) in tqdm(enumerate(data_loader),total = l):
             if torch.cuda.is_available():
-                input_data = Variable(input_data.cuda(), volatile=True)
-                labels = Variable(labels.cuda(), volatile=True)
-            else:
-                input_data = Variable(input_data, volatile=True)
-                labels = Variable(labels, volatile=True)
+                with torch.no_grad():
+                    input_data = Variable(input_data.cuda())
+                    pred_labels = self.net.out_prediction(input_data)
+                    labels = Variable(labels.cuda())
 
-            pred_labels = self.net.out_prediction(input_data)
+            else:
+                with torch.no_grad():
+                    input_data = Variable(input_data)
+                    pred_labels = self.net.out_prediction(input_data)
+                    labels = Variable(labels)
 
             self.pred_labels_list += pred_labels.tolist()
             self.gt_labels_list += labels.tolist()
